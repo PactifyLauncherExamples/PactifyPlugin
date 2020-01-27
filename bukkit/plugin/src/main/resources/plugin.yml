@@ -1,0 +1,32 @@
+name: PactifyPlugin
+main: nz.pactifylauncher.plugin.bukkit.PactifyPlugin
+version: ${describe}
+authors: [PactifyLauncherExamples]
+
+commands:
+  pactifycheck:
+    aliases: [pacheck]
+    description: Check whether a given player is using the Pactify Launcher
+    usage: /pacheck <player>
+    permission: pactifyplugin.check
+  pactifylist:
+    aliases: [palist]
+    description: Separately lists the players who use the Pactify Launcher and those who don't
+    usage: /palist <player>
+    permission: pactifyplugin.list
+  pactifystats:
+    aliases: [pastats]
+    description: View the Pactify Launcher usage statistics.
+    usage: /pastats
+    permission: pactifyplugin.stats
+
+permissions:
+  pactifyplugin.check:
+    default: op
+    description: Allows use of /pacheck
+  pactifyplugin.list:
+    default: op
+    description: Allows use of /palist
+  pactifyplugin.stats:
+    default: op
+    description: Allows use of /pastats

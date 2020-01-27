@@ -1,0 +1,3 @@
+name: PactifyPlugin
+main: nz.pactifylauncher.plugin.bungee.PactifyPlugin
+version: ${describe}
