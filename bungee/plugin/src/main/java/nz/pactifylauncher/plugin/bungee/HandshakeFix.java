@@ -20,7 +20,7 @@ public class HandshakeFix implements Listener {
         InitialHandler con = (InitialHandler) event.getConnection();
         Matcher m = PACTIFY_HOSTNAME_PATTERN.matcher(con.getExtraDataInHandshake());
         if (m.find()) {
-            // send the Pactify Launcher handshake using \u0002 instead of \u0000 (so that will not break IP forwarding)
+            // Send the Pactify Launcher handshake using \u0002 instead of \u0000 (so that will not break IP forwarding)
             event.getHandshake().setHost(event.getHandshake().getHost() + "\u0002" + m.group(1) + "\u0002");
         }
     }

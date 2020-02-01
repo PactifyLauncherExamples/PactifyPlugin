@@ -4,10 +4,15 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import nz.pactifylauncher.plugin.bukkit.api.player.PactifyPlayer;
 import nz.pactifylauncher.plugin.bukkit.conf.Conf;
+import nz.pactifylauncher.plugin.bukkit.util.BukkitUtil;
 import nz.pactifylauncher.plugin.bukkit.util.SchedulerUtil;
 import org.bukkit.entity.Player;
 import org.bukkit.metadata.MetadataValue;
+import pactify.client.api.plsp.packet.client.PLSPPacketConfFlag;
+import pactify.client.api.plsp.packet.client.PLSPPacketConfFlags;
+import pactify.client.api.plsp.packet.client.PLSPPacketReset;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -23,9 +28,10 @@ public class PPactifyPlayer implements PactifyPlayer {
     private final PPlayersService service;
     private final Player player;
     private final Set<Integer> scheduledTasks = new HashSet<>();
+    private boolean joined;
     private int launcherProtocolVersion;
 
-    public void init(boolean onJoin) {
+    public void init() {
         List<MetadataValue> hostnameMeta = player.getMetadata("PactifyPlugin:hostname");
         if (!hostnameMeta.isEmpty()) {
             String hostname = hostnameMeta.get(0).asString();
@@ -37,10 +43,51 @@ public class PPactifyPlayer implements PactifyPlayer {
             service.getPlugin().getLogger().warning("Unable to verify the launcher of " + player.getName()
                     + ": it probably logged when the plugin was disabled!");
         }
+
+        BukkitUtil.addChannel(player, "PLSP"); // Register the PLSP channel for the Player.sendPluginMessage calls
+    }
+
+    public void join() {
+        joined = true;
+
+        // This client can come from another server if BungeeCord is used, so we reset it to ensure a clean state!
+        service.getPlugin().getPlspMessenger().sendPLSPMessage(player, new PLSPPacketReset());
+
+        // Send client capabilities
+        // TODO: Add config and API
+        int sv = service.getPlugin().getServerVersion();
+        boolean attackCooldown;
+        boolean playerPush;
+        boolean largeHitbox;
+        boolean swordBlocking;
+        boolean hitAndBlock;
+        if (sv >= 1_009_000) { // >= 1.9.0
+            attackCooldown = true;
+            playerPush = true;
+            largeHitbox = false;
+            swordBlocking = false;
+            hitAndBlock = false;
+        } else { // < 1.9.0
+            attackCooldown = false;
+            playerPush = false;
+            largeHitbox = true;
+            swordBlocking = true;
+            hitAndBlock = (sv < 1_008_000); // < 1.8.0
+        }
+        service.getPlugin().getPlspMessenger().sendPLSPMessage(player, new PLSPPacketConfFlags(Arrays.asList(
+                new PLSPPacketConfFlag("attack_cooldown", attackCooldown),
+                new PLSPPacketConfFlag("player_push", playerPush),
+                new PLSPPacketConfFlag("large_hitbox", largeHitbox),
+                new PLSPPacketConfFlag("sword_blocking", swordBlocking),
+                new PLSPPacketConfFlag("hit_and_block", hitAndBlock)
+        )));
     }
 
     public void free(boolean onQuit) {
         SchedulerUtil.cancelTasks(service.getPlugin(), scheduledTasks);
+        if (!onQuit) {
+            service.getPlugin().getPlspMessenger().sendPLSPMessage(player, new PLSPPacketReset());
+        }
     }
 
     public void doJoinActions(Conf.JoinActions actions) {

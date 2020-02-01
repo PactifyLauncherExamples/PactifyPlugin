@@ -13,6 +13,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.metadata.FixedMetadataValue;
 
 import java.util.HashMap;
@@ -27,15 +28,16 @@ public class PPlayersService implements PlayersService, Listener {
     private final Map<UUID, PPactifyPlayer> players = new HashMap<>();
 
     public void enable() {
-        // register events
+        // Register events
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
 
-        // (re-)initialize already connected players
+        // (Re-)Initialize already connected players
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             PPactifyPlayer pactifyPlayer;
             players.put(player.getUniqueId(), pactifyPlayer = new PPactifyPlayer(this, player));
             try {
-                pactifyPlayer.init(false);
+                pactifyPlayer.init();
+                pactifyPlayer.join();
             } catch (Throwable t) {
                 plugin.getLogger().log(Level.WARNING, "An error occurred initializing " + player.getName() + ":", t);
             }
@@ -43,20 +45,8 @@ public class PPlayersService implements PlayersService, Listener {
     }
 
     public void disable() {
-        // unregister events
+        // Unregister events
         HandlerList.unregisterAll(this);
-
-        // free registered players
-        for (Iterator<PPactifyPlayer> it = players.values().iterator(); it.hasNext(); ) {
-            PPactifyPlayer pactifyPlayer = it.next();
-            it.remove();
-            try {
-                pactifyPlayer.free(false);
-            } catch (Throwable t) {
-                plugin.getLogger().log(Level.WARNING, "An error occurred freeing "
-                        + pactifyPlayer.getPlayer().getName() + ":", t);
-            }
-        }
     }
 
     @Override
@@ -83,13 +73,13 @@ public class PPlayersService implements PlayersService, Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerLogin(PlayerLoginEvent event) {
-        // store the hostname in a metadata to keep it between reloads
+        // Store the hostname in a metadata to keep it between reloads
         event.getPlayer().setMetadata("PactifyPlugin:hostname", new FixedMetadataValue(plugin, event.getHostname()));
 
-        // then initialize the PactifyPlayer instance
+        // Then initialize the PactifyPlayer instance
         PPactifyPlayer pactifyPlayer;
         players.put(event.getPlayer().getUniqueId(), pactifyPlayer = new PPactifyPlayer(this, event.getPlayer()));
-        pactifyPlayer.init(true);
+        pactifyPlayer.init();
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -103,6 +93,7 @@ public class PPlayersService implements PlayersService, Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerJoin(PlayerJoinEvent event) {
         PPactifyPlayer pactifyPlayer = getPlayer(event.getPlayer());
+        pactifyPlayer.join();
         pactifyPlayer.doJoinActions(pactifyPlayer.hasLauncher()
                 ? plugin.getConf().getLoginWithPactify()
                 : plugin.getConf().getLoginWithoutPactify());
@@ -117,6 +108,27 @@ public class PPlayersService implements PlayersService, Listener {
         PPactifyPlayer pactifyPlayer = players.remove(player.getUniqueId());
         if (pactifyPlayer != null) {
             pactifyPlayer.free(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPluginDisable(PluginDisableEvent event) {
+        if (event.getPlugin() != plugin) {
+            return;
+        }
+
+        // Free registered players
+        // NOTE: This is not in the disable() method because we can't send Plugin Messages with an already disabled
+        // plugin!
+        for (Iterator<PPactifyPlayer> it = players.values().iterator(); it.hasNext(); ) {
+            PPactifyPlayer pactifyPlayer = it.next();
+            it.remove();
+            try {
+                pactifyPlayer.free(false);
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.WARNING, "An error occurred freeing "
+                        + pactifyPlayer.getPlayer().getName() + ":", t);
+            }
         }
     }
 }
